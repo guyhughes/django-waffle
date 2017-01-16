@@ -7,21 +7,26 @@ from django.core.management.base import BaseCommand, CommandError
 from waffle.models import Flag
 
 
-class Command(BaseCommand):
+class Command(BaseCommand): 
     option_list = BaseCommand.option_list + (
         make_option('-l', '--list',
             action='store_true',
             dest='list_flag',
-            default=False,
+            default=None,
             help="List existing samples."),
         make_option('--everyone',
             action='store_true',
             dest='everyone',
             help="Activate flag for all users."),
-        make_option('--deactivate',
+        make_option('--allow',
+            action='store_const',
+            const="allow",
+            dest='everyone',
+            help="Allow flag to be activated by other settings."),
+        make_option('--no-one',
             action='store_false',
             dest='everyone',
-            help="Deactivate flag for all users."),
+            help="Deactivate flag globally."),
         make_option('--percent', '-p',
             action='store',
             type='int',
@@ -31,27 +36,27 @@ class Command(BaseCommand):
         make_option('--superusers',
             action='store_true',
             dest='superusers',
-            default=False,
+            default=None,
             help='Turn on the flag for Django superusers.'),
         make_option('--staff',
             action='store_true',
             dest='staff',
-            default=False,
+            default=None,
             help='Turn on the flag for Django staff.'),
         make_option('--authenticated',
             action='store_true',
             dest='authenticated',
-            default=False,
+            default=None,
             help='Turn on the flag for logged in users.'),
         make_option('--rollout', '-r',
             action='store_true',
             dest='rollout',
-            default=False,
+            default=None,
             help='Turn on rollout mode.'),
         make_option('--create',
             action='store_true',
             dest='create',
-            default=False,
+            default=None,
             help='If the flag doesn\'t exist, create it.'),
     )
 
@@ -61,17 +66,22 @@ class Command(BaseCommand):
     def handle(self, flag_name=None, *args, **options):
         list_flag = options['list_flag']
 
+        def __print_flag_field(field, value):
+            print('{: >13s}: {:s}'.format(field, value))
+
         if list_flag:
             print('Flags:')
+
             for flag in Flag.objects.iterator():
-                print('\nNAME: %s' % flag.name)
-                print('SUPERUSERS: %s' % flag.superusers)
-                print('EVERYONE: %s' % flag.everyone)
-                print('AUTHENTICATED: %s' % flag.authenticated)
-                print('PERCENT: %s' % flag.percent)
-                print('TESTING: %s' % flag.testing)
-                print('ROLLOUT: %s' % flag.rollout)
-                print('STAFF: %s' % flag.staff)
+                print('\n{:-<80s}'.format(flag.name))
+                __print_flag_field('SUPERUSERS', flag.superusers)
+                __print_flag_field('EVERYONE', flag.everyone)
+                __print_flag_field('AUTHENTICATED', flag.authenticated)
+                __print_flag_field('PERCENT', flag.percent)
+                __print_flag_field('TESTING', flag.testing)
+                __print_flag_field('ROLLOUT', flag.rollout)
+                __print_flag_field('STAFF', flag.staff)
+
             return
 
         if not flag_name:
@@ -80,10 +90,11 @@ class Command(BaseCommand):
         if options['create']:
             flag, created = Flag.objects.get_or_create(name=flag_name)
             if created:
-                print('Creating flag: %s' % flag_name)
+                print('Created flag: {:}'.format(flag_name))
         else:
             try:
                 flag = Flag.objects.get(name=flag_name)
+                print("Modifying flag: {:}".format(flag_name))
             except Flag.DoesNotExist:
                 raise CommandError("This flag doesn't exist")
 
@@ -91,7 +102,7 @@ class Command(BaseCommand):
         # match (ie. don't want to try setting flag.verbosity)
         for option in options:
             if hasattr(flag, option):
-                print('Setting %s: %s' % (option, options[option]))
+                __print_flag_field(option, options[option])
                 setattr(flag, option, options[option])
 
         flag.save()
